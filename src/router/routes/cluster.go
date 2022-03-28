@@ -1,8 +1,8 @@
 package routes
 
 import (
-	"api/src/controllers"
 	"net/http"
+	"orion-api/src/controllers"
 )
 
 var clusterRoutes = []Route{

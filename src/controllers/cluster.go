@@ -1,11 +1,11 @@
 package controllers
 
 import (
-	"api/src/kube"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"orion-api/src/kube"
 	"strconv"
 
 	gabs "github.com/Jeffail/gabs/v2"

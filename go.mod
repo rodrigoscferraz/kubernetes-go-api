@@ -1,4 +1,4 @@
-module api
+module orion-api
 
 go 1.17
 

@@ -1,10 +1,10 @@
 package main
 
 import (
-	"api/src/router"
 	"fmt"
 	"log"
 	"net/http"
+	"orion-api/src/router"
 )
 
 func main() {
