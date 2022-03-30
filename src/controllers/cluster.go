@@ -6,15 +6,17 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"orion-api/src/kube"
 	"strconv"
 
 	gabs "github.com/Jeffail/gabs/v2"
 
-	//corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	//"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/kubernetes"
 )
+
+type KubeClient struct {
+	Client *kubernetes.Clientset
+}
 
 type Info struct {
 	NodeName              string `json:"nodeName"`
@@ -26,23 +28,25 @@ type Info struct {
 	NodeAllocatablePods   string `json:"nodeAllocatablePods"`
 }
 
-var listinfo []*Info
-
 func parseCapacity(s string) string {
 	return s[:len(s)-2]
 }
 
-func GetClusterInfo(w http.ResponseWriter, r *http.Request) {
+func isNodeMaster(nodeList map[string]string) bool {
+	isMaster := false
+	for key, _ := range nodeList {
+		if key == "node-role.kubernetes.io/master" {
+			isMaster = true
+		}
+	}
+	return isMaster
+}
 
-	_, clientset := kube.Kubeconf()
-	// mc, err := metrics.NewForConfig(config)
-	// if err != nil {
-	// 	panic(err)
-	// }
+func (kube KubeClient) GetClusterInfo(w http.ResponseWriter, r *http.Request) {
+	var listinfo []*Info
 
-	nodes, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
-		// LabelSelector: "node-role.kubernetes.io/master=true",
-	})
+	clientset := kube.Client
+	nodes, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		panic(err.Error())
 	}
@@ -57,13 +61,11 @@ func GetClusterInfo(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	// availableNodes := len(nodes.Items)
-	// i := 0
-	// resp := gabs.New()
-
-	
-
 	for i, node := range nodes.Items {
+
+		if isNodeMaster(node.GetLabels()) {
+			continue
+		}
 
 		nodeName := jsonParsed.Search("items", strconv.Itoa(i), "metadata", "name").Data()
 		nodeCapacityCPU := jsonParsed.Search("items", strconv.Itoa(i), "status", "capacity", "cpu").Data()
@@ -72,21 +74,6 @@ func GetClusterInfo(w http.ResponseWriter, r *http.Request) {
 		nodeAllocatableCPU := jsonParsed.Search("items", strconv.Itoa(i), "status", "allocatable", "cpu").Data()
 		nodeAllocatableMemory := fmt.Sprintf("%v", jsonParsed.Search("items", strconv.Itoa(i), "status", "allocatable", "memory").Data())
 		nodeAllocatablePods := jsonParsed.Search("items", strconv.Itoa(i), "status", "allocatable", "pods").Data()
-
-		// sb, _ := json.Marshal(nodeRole)
-		// fmt.Println(string(sb))
-		// node-role.kubernetes.io/master
-		isMaster := false
-
-		for key, _ := range node.GetLabels() {
-			if key == "node-role.kubernetes.io/master" {
-				isMaster = true
-			}
-		}
-
-		if isMaster {
-			continue
-		}
 
 		nodeCapacityMemory = parseCapacity(nodeCapacityMemory)
 		nodeAllocatableMemory = parseCapacity(nodeAllocatableMemory)
@@ -101,9 +88,7 @@ func GetClusterInfo(w http.ResponseWriter, r *http.Request) {
 			NodeAllocatablePods:   fmt.Sprintf("%v", nodeAllocatablePods),
 		}
 
-		// resp.ArrayAppend(info)
 		listinfo = append(listinfo, info)
-		//data, _ := json.Marshal(info)
 	}
 
 	w.Header().Add("Content-type", "application/json")
@@ -111,6 +96,7 @@ func GetClusterInfo(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	w.Write([]byte(sbyte))
 
 }
